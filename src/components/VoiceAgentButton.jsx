@@ -97,67 +97,62 @@ export default function VoiceAgentButton() {
   const [room, setRoom] = useState(null);
 
   // función asincrónica que maneja la conexión
-  async function connectToAgent() {
+async function connectToAgent() {
+  try {
+    const API_URL = import.meta.env.VITE_API_URL || "https://descriptive-kamron-nonsignificant.ngrok-free.dev";
+    console.log("Solicitando token desde:", API_URL + "/token");
+
+    const res = await fetch(`${API_URL}/token`, {
+      headers: {
+        "Accept": "application/json",
+      },
+      mode: "cors",
+    });
+
+    const text = await res.text();
+    console.log("Respuesta cruda:", text);
+
+    let data;
     try {
-      // 1. Obtener token desde FastAPI
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-      console.log(`🎯 Solicitando token desde: ${API_URL}/token`);
-      const res = await fetch(`${API_URL}/token`);
-      if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
-      const { token } = await res.json();
-      console.log("✅ Token recibido:", token.slice(0, 20) + "...");
-
-      // 2. Crear la sala LiveKit
-      const newRoom = new Room({
-        adaptiveStream: false,
-        dynacast: false,
-        autoSubscribe: true, // ✅ fundamental
-      });
-
-      // 3. Conectar usando el token
-      await newRoom.connect("wss://cantoragent-m43lqvqc.livekit.cloud", token);
-
-      // 4. Crear track de micrófono con cancelación de eco, etc.
-      const [micTrack] = await createLocalTracks({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      await newRoom.localParticipant.publishTrack(micTrack);
-
-      // 5. Reproducir cualquier pista de audio remota
-      newRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-        if (track.kind === "audio") {
-          const audioEl = document.createElement("audio");
-          audioEl.srcObject = new MediaStream([track.mediaStreamTrack]);
-          audioEl.autoplay = true;
-          document.body.appendChild(audioEl);
-          console.log("🎧 Reproduciendo audio de", participant.identity);
-        }
-      });
-
-      // Eventos opcionales
-      newRoom.on(RoomEvent.TrackSubscriptionFailed, (_, __, err) =>
-        console.error("❌ TrackSubscriptionFailed", err)
-      );
-
-      newRoom.on(RoomEvent.ParticipantConnected, (p) =>
-        console.log("👤 Participant connected:", p.identity)
-      );
-
-      newRoom.on(RoomEvent.ParticipantDisconnected, (p) =>
-        console.log("👋 Participant disconnected:", p.identity)
-      );
-
-      setRoom(newRoom);
-      setActive(true);
-      console.log("✅ Conectado al agente de voz");
-    } catch (err) {
-      console.error("⚠️ Error al conectar con el agente:", err);
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error("⚠️ No se pudo parsear JSON:", e);
+      return;
     }
+
+    const { token } = data;
+
+    const newRoom = new Room({
+      adaptiveStream: false,
+      dynacast: false,
+      autoSubscribe: true,
+    });
+
+    await newRoom.connect("wss://cantoragent-m43lqvqc.livekit.cloud", token);
+
+    const [micTrack] = await createLocalTracks({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    await newRoom.localParticipant.publishTrack(micTrack);
+
+    newRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      if (track.kind === "audio") {
+        const audioEl = document.createElement("audio");
+        audioEl.srcObject = new MediaStream([track.mediaStreamTrack]);
+        audioEl.autoplay = true;
+        document.body.appendChild(audioEl);
+        console.log("✅ Subscribed to", participant.identity);
+      }
+    });
+
+    setRoom(newRoom);
+    setActive(true);
+    console.log("✅ Conectado al agente de voz");
+  } catch (err) {
+    console.error("⚠️ Error al conectar con el agente:", err);
   }
+}
+
 
   // función para desconectarse del agente
   function disconnectAgent() {
