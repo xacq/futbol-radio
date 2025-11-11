@@ -9,7 +9,7 @@ export default function VoiceAgentButton() {
   async function connectToAgent() {
     try {
       // 1. Obtener token desde FastAPI
-      const res = await fetch("http://localhost:8000/token");
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
       const { token } = await res.json();
 
       // 2. Crear la sala LiveKit
